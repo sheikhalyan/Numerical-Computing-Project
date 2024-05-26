@@ -1,14 +1,9 @@
 import tkinter as tk
-from tkinter import ttk
-from tkinter import messagebox
+from tkinter import ttk, messagebox
 import numpy as np
 import matplotlib.pyplot as plt
 
-# LOGISTIC GROWTH
-# Function definitions for logistic growth and numerical methods
-def logistic_growth(P, r, K):
-    return r * P * (1 - P / K)
-
+# Function definitions for numerical methods
 def newton_method(f, dfdx, x0, tol=1e-6, max_iter=100):
     x = x0
     x_vals = []
@@ -53,7 +48,7 @@ def plot_errors(method, errors):
     plt.plot(errors, label=method, marker='o')
     plt.xlabel('Iteration')
     plt.ylabel('Absolute Error')
-    plt.title(f'Convergence of {method} for Logistic Growth Model')
+    plt.title(f'Convergence of {method}')
     plt.legend()
     plt.grid(True)
     plt.show()
@@ -64,13 +59,16 @@ def plot_exact_vs_approx(method, x_vals, exact_value):
     plt.plot(range(1, len(x_vals)+1), x_vals, label=f'Approximate ({method})', marker='o')
     plt.axhline(y=exact_value, color='r', linestyle='-', label='Exact Solution')
     plt.xlabel('Iteration')
-    plt.ylabel('Population')
+    plt.ylabel('Solution')
     plt.title(f'Exact vs Approximate Solution ({method})')
     plt.legend()
     plt.grid(True)
     plt.show()
 
-# Function to calculate logistic growth using selected method and display results
+# Logistic Growth Model
+def logistic_growth(P, r, K):
+    return r * P * (1 - P / K)
+
 def calculate_logistic():
     target_population = float(target_population_entry.get())
     P0 = float(P0_entry.get())
@@ -84,9 +82,6 @@ def calculate_logistic():
         return r * (1 - 2 * P / K)
 
     method = method_combobox_logistic.get()
-
-    # Calculate a high-precision solution to use as the "exact" value
-
     high_precision_root, _, _ = newton_method(f_logistic, dfdx_logistic, P0, tol=1e-12)
 
     if method == "Newton's Method":
@@ -96,368 +91,223 @@ def calculate_logistic():
     elif method == "Bisection Method":
         root, iterations, x_vals = bisection_method(f_logistic, 0.0, K)
 
-    # Calculate errors
     errors = [abs(f_logistic(x)) for x in x_vals]
 
-    # Display results, errors, exact, and approximate values
-    result_message = f"{method}: {root:.15f}\nIterations: {iterations}\n"
-    error_message = "\n".join(f"Iteration {i + 1}: {error:.15f}" for i, error in enumerate(errors))
-    exact_solution_message = f"Exact Solution: {high_precision_root:.15f}"
-    approximate_solution_message = f"Approximate Solution: {root:.15f}"
-    messagebox.showinfo("Results",result_message+ "\n" + exact_solution_message + "\n" + approximate_solution_message + "\n" + error_message )
+    details_window = tk.Toplevel(main_window)
+    details_window.title("Iteration Details")
 
-    # Plot errors
+    tree = ttk.Treeview(details_window, columns=("Iteration", "Approximate Solution", "Exact Solution", "Error"), show="headings")
+    tree.heading("Iteration", text="Iteration")
+    tree.heading("Approximate Solution", text="Approximate Solution")
+    tree.heading("Exact Solution", text="Exact Solution")
+    tree.heading("Error", text="Error")
+
+    for i in range(len(x_vals)):
+        exact_val = high_precision_root
+        error = abs(x_vals[i] - exact_val)
+        tree.insert("", "end", values=(i + 1, x_vals[i], exact_val, error))
+
+    tree.pack(fill="both", expand=True)
     plot_errors(method, errors)
-
-    # Plot exact vs approximate solutions
     plot_exact_vs_approx(method, x_vals, high_precision_root)
 
+# Diode Equation Model
+def diode_eq(V, Is, n, Vt, I):
+    return Is * (np.exp(V / (n * Vt)) - 1) - I
 
-# Function definitions for diode equation and numerical methods
-def diode_equation(V, Is, n, Vt, I_load):
-    return Is * (np.exp(V / (n * Vt)) - 1) - I_load
+def dfdx_diode_eq(V, Is, n, Vt):
+    return (Is / (n * Vt)) * np.exp(V / (n * Vt))
 
-def diode_equation_derivative(V, Is, n, Vt):
-    return Is * np.exp(V / (n * Vt)) / (n * Vt)
-
-def newton_method_diode(f, dfdx, x0, Is, n, Vt, I_load, tol=1e-6, max_iter=100):
-    x = x0
-    x_vals = [x]
-    errors = []
-    for _ in range(max_iter):
-        dx = -f(x, Is, n, Vt, I_load) / dfdx(x, Is, n, Vt)
-        x += dx
-        x_vals.append(x)
-        error = np.abs(f(x, Is, n, Vt, I_load))
-        errors.append(error)
-        if error < tol:
-            break
-    return x, x_vals, errors, len(x_vals) - 1
-
-def bisection_method_diode(f, a, b, Is, n, Vt, I_load, tol=1e-6, max_iter=100):
-    x_vals = []
-    errors = []
-    for _ in range(max_iter):
-        c = (a + b) / 2.0
-        fc = f(c, Is, n, Vt, I_load)
-        x_vals.append(c)
-        error = np.abs(fc)
-        errors.append(error)
-        if error < tol:
-            break
-        if f(a, Is, n, Vt, I_load) * fc < 0:
-            b = c
-        else:
-            a = c
-    return c, x_vals, errors, len(x_vals) - 1
-
-def false_position_method(f, a, b, Is, n, Vt, I_load, tol=1e-6, max_iter=100):
-    x_vals = []
-    errors = []
-    for _ in range(max_iter):
-        fa = f(a, Is, n, Vt, I_load)
-        fb = f(b, Is, n, Vt, I_load)
-        if np.abs(fb - fa) < 1e-10:  # Check if denominator is close to zero
-            break
-        c = (a * fb - b * fa) / (fb - fa)
-        fc = f(c, Is, n, Vt, I_load)
-        x_vals.append(c)
-        error = np.abs(fc)
-        errors.append(error)
-        if error < tol:
-            break
-        if fa * fc < 0:
-            b = c
-        else:
-            a = c
-    return c, x_vals, errors, len(x_vals) - 1
-
-# Function to plot exact vs approximate solutions
-def plot_exact_vs_approx(method, x_vals, exact_value):
-    plt.figure()
-    plt.plot(range(1, len(x_vals)+1), x_vals, label=f'Approximate ({method})', marker='o')
-    plt.axhline(y=exact_value, color='r', linestyle='-', label='Exact Solution')
-    plt.xlabel('Iteration')
-    plt.ylabel('Voltage (V)')
-    plt.title(f'Exact vs Approximate Solution ({method})')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-# Function to calculate diode equation using selected method and display results
 def calculate_diode():
+    I = float(I_entry.get())
     Is = float(Is_entry.get())
     n = float(n_entry.get())
     Vt = float(Vt_entry.get())
-    I_load = float(I_load_entry.get())
-    V_guess = float(V_guess_entry.get())
+    V0 = float(V0_entry.get())
+
+    def f_diode(V):
+        return diode_eq(V, Is, n, Vt, I)
+
+    def dfdx_diode(V):
+        return dfdx_diode_eq(V, Is, n, Vt)
+
     method = method_combobox_diode.get()
 
-    # Calculate a high-precision solution to use as the "exact" value
-    exact_root, _, _, _ = newton_method_diode(diode_equation, diode_equation_derivative, V_guess, Is, n, Vt, I_load, tol=1e-12)
-
     if method == "Newton's Method":
-        root, x_vals, errors, iterations = newton_method_diode(diode_equation, diode_equation_derivative, V_guess, Is, n, Vt, I_load)
-    elif method == "Bisection Method":
-        root, x_vals, errors, iterations = bisection_method_diode(diode_equation, 0.0, 5.0, Is, n, Vt, I_load)
-    elif method == "False Position Method":
-        root, x_vals, errors, iterations = false_position_method(diode_equation, 0.0, 5.0, Is, n, Vt, I_load)
-
-    # Display results and errors
-    exact_solution_message = f"Exact Solution: {exact_root:.6f} V"
-    approximate_solution_message = f"Approximate Solution: {root:.6f} V"
-    result_message = f"Root of the Diode Equation: {root:.6f} V\nIterations: {iterations}\n"
-    error_message = "Errors: " + ", ".join([f"{error:.6e}" for error in errors])
-    messagebox.showinfo("Result", f"{exact_solution_message}\n{approximate_solution_message}\n{result_message}\n{error_message}")
-
-
-    # Plot error convergence
-    plt.figure()
-    plt.plot(range(1, len(errors)+1), errors, marker='o')
-    plt.xlabel('Iteration')
-    plt.ylabel('Error')
-    plt.title('Error Convergence')
-    plt.grid(True)
-    plt.show()
-
-    # Plot exact vs approximate solutions
-    plot_exact_vs_approx(method, x_vals, exact_root)
-
-# Function definitions for rectangular field problem
-# Function definitions for rectangular field problem
-# Function definitions for rectangular field problem
-def perimeter_eq(L, W):
-    return 2 * L + 2 * W
-
-def area_eq(L, W):
-    return L * W
-
-def solve_rectangular_field(perimeter_val, area_val, method):
-    L0 = 30.0  # Initial guess for L
-
-    def f(L, W):
-        return np.array([perimeter_eq(L, W) - perimeter_val, area_eq(L, W) - area_val])
-
-    def dfdx(L, W):
-        return np.array([[2, 2], [W, L]])
-
-    def newton_method(f, dfdx, x0, tol=1e-3, max_iter=100):
-        x = x0.astype(float)
-        x_vals = [x.copy()]
-        errors = []
-        for i in range(1, max_iter+1):
-            dx = np.linalg.lstsq(dfdx(*x), -f(*x), rcond=None)[0]
-            x += dx
-            x_vals.append(x.copy())
-            error = np.linalg.norm(f(*x))
-            errors.append(error)
-            if error < tol:
-                break
-        return x, i, errors, x_vals
-
-    def bisection_method(f, a, b, tol=1e-3, max_iter=100):
-        x_vals = [(a, a), (b, b)]
-        errors = []
-        for i in range(1, max_iter+1):
-            c = (a + b) / 2
-            x_vals.append((c, c))
-            fc = f(c)
-            error = np.abs(fc)
-            errors.append(error)
-            if error < tol or np.abs(b - a) / 2 < tol:
-                break
-            if f(a) * fc < 0:
-                b = c
-            else:
-                a = c
-        return (c, c), i, errors, x_vals
-
-    def secant_method(f, x0, x1, tol=1e-3, max_iter=100):
-        x_vals = [(x0, x0), (x1, x1)]
-        errors = []
-        for i in range(1, max_iter+1):
-            x_next = x1 - f(x1) * (x1 - x0) / (f(x1) - f(x0))
-            x_vals.append((x_next, x_next))
-            error = np.abs(f(x_next))
-            errors.append(error)
-            if error < tol:
-                break
-            x0, x1 = x1, x_next
-        return (x_next, x_next), i, errors, x_vals
-
-    if method == "Newton's Method":
-        result, iterations, errors, x_vals = newton_method(f, dfdx, np.array([L0, L0]))
-    elif method == "Bisection Method":
-        result, iterations, errors, x_vals = bisection_method(lambda L: f(L, L0)[0], 0, 100)
+        root, iterations, x_vals = newton_method(f_diode, dfdx_diode, V0)
     elif method == "Secant Method":
-        result, iterations, errors, x_vals = secant_method(lambda L: f(L, L0)[0], 0, 100)
-    else:
-        return None, None, None, None
+        root, iterations, x_vals = secant_method(f_diode, V0, V0 + 0.1)
+    elif method == "Bisection Method":
+        root, iterations, x_vals = bisection_method(f_diode, 0.0, 5.0)
 
-    return result, iterations, errors, x_vals
+    errors = [abs(f_diode(x)) for x in x_vals]
 
-def calculate_rectangular_field():
-    perimeter_val = float(perimeter_entry_rec.get())
-    area_val = float(area_entry_rec.get())
-    method = method_combobox_rectangular.get()
+    details_window = tk.Toplevel(main_window)
+    details_window.title("Iteration Details - Diode Equation")
 
-    if method not in ["Newton's Method", "Bisection Method", "Secant Method"]:
-        messagebox.showerror("Error", "Invalid method selected.")
-        return
+    tree = ttk.Treeview(details_window, columns=("Iteration", "Approximate Solution", "Error"), show="headings")
+    tree.heading("Iteration", text="Iteration")
+    tree.heading("Approximate Solution", text="Approximate Solution")
+    tree.heading("Error", text="Error")
 
-    result, iterations, errors, x_vals = solve_rectangular_field(perimeter_val, area_val, method)
+    for i in range(len(x_vals)):
+        error = abs(x_vals[i] - root)
+        tree.insert("", "end", values=(i + 1, x_vals[i], error))
 
-    if result is None:
-        messagebox.showerror("Error", "An error occurred while solving.")
-    else:
-        approximate_solution_str = f"Approximate Solution - L: {x_vals[-1][0]:.6f} m, W: {x_vals[-1][1]:.6f} m"
-        exact_solution_str = f"Exact Solution - L: {result[0]:.6f} m, W: {result[1]:.6f} m"
-        error_string = "\n".join([f"Iteration {i+1}: {error:.15f}" for i, error in enumerate(errors)])
-        messagebox.showinfo("Result", f"{exact_solution_str}\n{approximate_solution_str}\n\nNumber of iterations: {iterations}\nErrors:\n{error_string}")
+    tree.pack(fill="both", expand=True)
+    plot_errors(method, errors)
+    plot_exact_vs_approx(method, x_vals, root)
 
-        # Plotting the error convergence graph
-        plt.figure()
-        plt.plot(range(1, len(errors)+1), errors, marker='o')
-        plt.xlabel('Iteration')
-        plt.ylabel('Error')
-        plt.title(f'Error Convergence for {method}')
-        plt.grid(True)
-        plt.show()
+# Rectangular Field Model
+def rectangular_field(L, P, A):
+    return 2 * L + 2 * (A / L) - P
 
-        # Plotting the exact vs. approximate solution
-        L_vals = [x[0] for x in x_vals]
-        plt.figure()
-        plt.plot(range(1, len(L_vals)+1), L_vals, label=f'Approximate ({method})', marker='o')
-        plt.axhline(y=result[0], color='r', linestyle='-', label='Exact Solution')
-        plt.xlabel('Iteration')
-        plt.ylabel('Length (L)')
-        plt.title(f'Exact vs Approximate Solution ({method})')
-        plt.legend()
-        plt.grid(True)
-        plt.show()
+def dfdx_rectangular_field(L, A):
+    return 2 - 2 * (A / L ** 2)
 
+def calculate_field():
+    P = float(P_entry.get())
+    A = float(A_entry.get())
+    L0 = float(L0_entry.get())
 
-#root = tk.Tk()
-#root.title("Rectangular Field Solver")
+    def f_field(L):
+        return rectangular_field(L, P, A)
 
+    def dfdx_field(L):
+        return dfdx_rectangular_field(L, A)
 
-root = tk.Tk()
-root.title("Numerical Example Solver")
-root.geometry("390x340")
+    method = method_combobox_field.get()
 
-# Tab Control
-tab_control = ttk.Notebook(root)
+    if method == "Newton's Method":
+        root, iterations, x_vals = newton_method(f_field, dfdx_field, L0)
+    elif method == "Secant Method":
+        root, iterations, x_vals = secant_method(f_field, L0, L0 + 0.1)
+    elif method == "Bisection Method":
+        root, iterations, x_vals = bisection_method(f_field, 0.1, P / 2)
 
-# Tab 1 - Logistic Growth Model
-tab1 = ttk.Frame(tab_control)
-tab_control.add(tab1, text='Logistic Growth Model')
+    errors = [abs(f_field(x)) for x in x_vals]
 
-# Widgets
-tk.Label(tab1, text="Initial Population (P0):").grid(row=0, column=0, padx=10, pady=10)
-P0_entry = tk.Entry(tab1, width=30)  # Fixed width
-P0_entry.grid(row=0, column=1, padx=10, pady=10)
-P0_entry.insert(0, "10")
+    details_window = tk.Toplevel(main_window)
+    details_window.title("Iteration Details - Rectangular Field")
 
-tk.Label(tab1, text="Growth Rate (r):").grid(row=1, column=0, padx=10, pady=10)
-r_entry = tk.Entry(tab1, width=30)  # Fixed width
-r_entry.grid(row=1, column=1, padx=10, pady=10)
-r_entry.insert(0, "0.1")
+    tree = ttk.Treeview(details_window, columns=("Iteration", "Approximate Solution", "Error"), show="headings")
+    tree.heading("Iteration", text="Iteration")
+    tree.heading("Approximate Solution", text="Approximate Solution")
+    tree.heading("Error", text="Error")
 
-tk.Label(tab1, text="Carrying Capacity (K):").grid(row=2, column=0, padx=10, pady=10)
-K_entry = tk.Entry(tab1, width=30)  # Fixed width
-K_entry.grid(row=2, column=1, padx=10, pady=10)
-K_entry.insert(0, "50")
+    for i in range(len(x_vals)):
+        error = abs(x_vals[i] - root)
+        tree.insert("", "end", values=(i + 1, x_vals[i], error))
 
-tk.Label(tab1, text="Target Population:").grid(row=3, column=0, padx=10, pady=10)
-target_population_entry = tk.Entry(tab1, width=30)  # Fixed width
-target_population_entry.grid(row=3, column=1, padx=10, pady=10)
+    tree.pack(fill="both", expand=True)
+    plot_errors(method, errors)
+    plot_exact_vs_approx(method, x_vals, root)
+
+# Main window
+main_window = tk.Tk()
+main_window.title("Numerical Methods for Various Equations")
+
+# Notebook for tabs
+notebook = ttk.Notebook(main_window)
+notebook.pack(pady=10, expand=True)
+
+# Logistic Growth Tab
+logistic_frame = ttk.Frame(notebook, width=400, height=400)
+logistic_frame.pack(fill="both", expand=True)
+notebook.add(logistic_frame, text="Logistic Growth")
+
+ttk.Label(logistic_frame, text="Target Population:").grid(column=0, row=0, padx=10, pady=5)
+target_population_entry = ttk.Entry(logistic_frame)
+target_population_entry.grid(column=1, row=0, padx=10, pady=5)
 target_population_entry.insert(0, "1.25")
 
-tk.Label(tab1, text="Select Method:").grid(row=4, column=0, padx=10, pady=10)
-method_combobox_logistic = ttk.Combobox(tab1, values=["Newton's Method", "Secant Method", "Bisection Method"], width=30)  # Fixed width
-method_combobox_logistic.grid(row=4, column=1, padx=10, pady=10)
+ttk.Label(logistic_frame, text="Initial Population (P0):").grid(column=0, row=1, padx=10, pady=5)
+P0_entry = ttk.Entry(logistic_frame)
+P0_entry.grid(column=1, row=1, padx=10, pady=5)
+P0_entry.insert(0, "0.1")
 
-calculate_button_logistic = tk.Button(tab1, text="Calculate", command=calculate_logistic, width=30, font=("Arial", 12))  # Fixed width and font size
-calculate_button_logistic.grid(row=5, columnspan=2, pady=20)
+ttk.Label(logistic_frame, text="Growth Rate (r):").grid(column=0, row=2, padx=10, pady=5)
+r_entry = ttk.Entry(logistic_frame)
+r_entry.grid(column=1, row=2, padx=10, pady=5)
+r_entry.insert(0, "1.0")
 
-# Tab 2 - Diode Equation Solver
-tab2 = ttk.Frame(tab_control)
-tab_control.add(tab2, text='Diode Equation Solver')
+ttk.Label(logistic_frame, text="Carrying Capacity (K):").grid(column=0, row=3, padx=10, pady=5)
+K_entry = ttk.Entry(logistic_frame)
+K_entry.grid(column=1, row=3, padx=10, pady=5)
+K_entry.insert(0, "10.0")
 
-# Widgets
-tk.Label(tab2, text="Is:").grid(row=0, column=0, padx=10, pady=10)
-Is_entry = tk.Entry(tab2, width=30)  # Fixed width
-Is_entry.grid(row=0, column=1, padx=10, pady=10)
-Is_entry.insert(0, "1e-6")
+ttk.Label(logistic_frame, text="Method:").grid(column=0, row=4, padx=10, pady=5)
+method_combobox_logistic = ttk.Combobox(logistic_frame, values=["Newton's Method", "Secant Method", "Bisection Method"])
+method_combobox_logistic.grid(column=1, row=4, padx=10, pady=5)
+method_combobox_logistic.current(0)
 
-tk.Label(tab2, text="n:").grid(row=1, column=0, padx=10, pady=10)
-n_entry = tk.Entry(tab2, width=30)  # Fixed width
-n_entry.grid(row=1, column=1, padx=10, pady=10)
-n_entry.insert(0, "1.5")
+calculate_button_logistic = ttk.Button(logistic_frame, text="Calculate", command=calculate_logistic)
+calculate_button_logistic.grid(column=0, row=5, columnspan=2, pady=10)
 
-tk.Label(tab2, text="Vt:").grid(row=2, column=0, padx=10, pady=10)
-Vt_entry = tk.Entry(tab2, width=30)  # Fixed width
-Vt_entry.grid(row=2, column=1, padx=10, pady=10)
+# Diode Equation Tab
+diode_frame = ttk.Frame(notebook, width=400, height=400)
+diode_frame.pack(fill="both", expand=True)
+notebook.add(diode_frame, text="Diode Equation")
+
+ttk.Label(diode_frame, text="Current (I):").grid(column=0, row=0, padx=10, pady=5)
+I_entry = ttk.Entry(diode_frame)
+I_entry.grid(column=1, row=0, padx=10, pady=5)
+I_entry.insert(0, "0.01")
+
+ttk.Label(diode_frame, text="Saturation Current (Is):").grid(column=0, row=1, padx=10, pady=5)
+Is_entry = ttk.Entry(diode_frame)
+Is_entry.grid(column=1, row=1, padx=10, pady=5)
+Is_entry.insert(0, "1e-12")
+
+ttk.Label(diode_frame, text="Emission Coefficient (n):").grid(column=0, row=2, padx=10, pady=5)
+n_entry = ttk.Entry(diode_frame)
+n_entry.grid(column=1, row=2, padx=10, pady=5)
+n_entry.insert(0, "1.0")
+
+ttk.Label(diode_frame, text="Thermal Voltage (Vt):").grid(column=0, row=3, padx=10, pady=5)
+Vt_entry = ttk.Entry(diode_frame)
+Vt_entry.grid(column=1, row=3, padx=10, pady=5)
 Vt_entry.insert(0, "0.025")
 
-tk.Label(tab2, text="I_load:").grid(row=3, column=0, padx=10, pady=10)
-I_load_entry = tk.Entry(tab2, width=30)  # Fixed width
-I_load_entry.grid(row=3, column=1, padx=10, pady=10)
-I_load_entry.insert(0, "0.005")
+ttk.Label(diode_frame, text="Initial Guess (V0):").grid(column=0, row=4, padx=10, pady=5)
+V0_entry = ttk.Entry(diode_frame)
+V0_entry.grid(column=1, row=4, padx=10, pady=5)
+V0_entry.insert(0, "0.1")
 
-tk.Label(tab2, text="V_guess:").grid(row=4, column=0, padx=10, pady=10)
-V_guess_entry = tk.Entry(tab2, width=30)  # Fixed width
-V_guess_entry.grid(row=4, column=1, padx=10, pady=10)
-V_guess_entry.insert(0, "3")
-
-tk.Label(tab2, text="Method:").grid(row=5, column=0, padx=10, pady=10)
-method_combobox_diode = ttk.Combobox(tab2, values=["Newton's Method", "Bisection Method", "False Position Method"], width=30)  # Fixed width
-method_combobox_diode.grid(row=5, column=1, padx=10, pady=10)
+ttk.Label(diode_frame, text="Method:").grid(column=0, row=5, padx=10, pady=5)
+method_combobox_diode = ttk.Combobox(diode_frame, values=["Newton's Method", "Secant Method", "Bisection Method"])
+method_combobox_diode.grid(column=1, row=5, padx=10, pady=5)
 method_combobox_diode.current(0)
 
-calculate_button_diode = tk.Button(tab2, text="Calculate", command=calculate_diode, width=30, font=("Arial", 12))  # Fixed width and font size
-calculate_button_diode.grid(row=6, columnspan=2, pady=20)
+calculate_button_diode = ttk.Button(diode_frame, text="Calculate", command=calculate_diode)
+calculate_button_diode.grid(column=0, row=6, columnspan=2, pady=10)
 
-# Tab 3 - Rectangular Field Solver
-tab3 = ttk.Frame(tab_control)
-tab_control.add(tab3, text='Rectangular Field Solver')
+# Rectangular Field Tab
+field_frame = ttk.Frame(notebook, width=400, height=400)
+field_frame.pack(fill="both", expand=True)
+notebook.add(field_frame, text="Rectangular Field")
 
-# Widgets
-tk.Label(tab3, text="Perimeter:").grid(row=0, column=0, padx=10, pady=10)
-perimeter_entry_rec = tk.Entry(tab3, width=30)  # Fixed width
-perimeter_entry_rec.grid(row=0, column=1, padx=10, pady=10)
-perimeter_entry_rec.insert(0, "140")
+ttk.Label(field_frame, text="Perimeter (P):").grid(column=0, row=0, padx=10, pady=5)
+P_entry = ttk.Entry(field_frame)
+P_entry.grid(column=1, row=0, padx=10, pady=5)
+P_entry.insert(0, "100.0")
 
-tk.Label(tab3, text="Area:").grid(row=1, column=0, padx=10, pady=10)
-area_entry_rec = tk.Entry(tab3, width=30)  # Fixed width
-area_entry_rec.grid(row=1, column=1, padx=10, pady=10)
-area_entry_rec.insert(0, "1200")
+ttk.Label(field_frame, text="Area (A):").grid(column=0, row=1, padx=10, pady=5)
+A_entry = ttk.Entry(field_frame)
+A_entry.grid(column=1, row=1, padx=10, pady=5)
+A_entry.insert(0, "500.0")
 
-tk.Label(tab3, text="Method:").grid(row=2, column=0, padx=10, pady=10)
-method_combobox_rectangular = ttk.Combobox(tab3, values=["Newton's Method", "Bisection Method", "Secant Method"], width=30)  # Fixed width
-method_combobox_rectangular.grid(row=2, column=1, padx=10, pady=10)
-method_combobox_rectangular.current(0)
+ttk.Label(field_frame, text="Initial Guess (L0):").grid(column=0, row=2, padx=10, pady=5)
+L0_entry = ttk.Entry(field_frame)
+L0_entry.grid(column=1, row=2, padx=10, pady=5)
+L0_entry.insert(0, "10.0")
 
-tk.Button(tab3, text="Calculate", command=calculate_rectangular_field, width=30, font=("Arial", 12)).grid(row=3, columnspan=2, pady=20)
+ttk.Label(field_frame, text="Method:").grid(column=0, row=3, padx=10, pady=5)
+method_combobox_field = ttk.Combobox(field_frame, values=["Newton's Method", "Secant Method", "Bisection Method"])
+method_combobox_field.grid(column=1, row=3, padx=10, pady=5)
+method_combobox_field.current(0)
 
-# Packing the tab control
-tab_control.grid(row=0, column=0, sticky="nsew")
+calculate_button_field = ttk.Button(field_frame, text="Calculate", command=calculate_field)
+calculate_button_field.grid(column=0, row=4, columnspan=2, pady=10)
 
-# Make all tabs expandable
-for tab in [tab1, tab2, tab3]:
-    tab.grid_columnconfigure(0, weight=1)
-    tab.grid_columnconfigure(1, weight=1)
-    tab.grid_rowconfigure(0, weight=1)
-    tab.grid_rowconfigure(1, weight=1)
-    tab.grid_rowconfigure(2, weight=1)
-    tab.grid_rowconfigure(3, weight=1)
-    tab.grid_rowconfigure(4, weight=1)
-    tab.grid_rowconfigure(5, weight=1)
-    tab.grid_rowconfigure(6, weight=1)
-
-root.mainloop()
-
-
-
-
-
+main_window.mainloop()
